@@ -25,10 +25,11 @@ via Luigi Alamanni 13D, San Giuliano Terme 56010 (PI), Italy
 #include <libfreenect2/packet_pipeline.h>
 #include <libfreenect2/registration.h>
 #include <libfreenect2/logger.h>
-#ifdef WITH_PCL
+
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#endif
+#include <pcl_conversions/pcl_conversions.h>
+
 #include <opencv2/opencv.hpp>
 #include <signal.h>
 #include <cstdlib>
@@ -39,20 +40,13 @@ via Luigi Alamanni 13D, San Giuliano Terme 56010 (PI), Italy
 #ifdef WITH_SERIALIZATION
 #include "serialization.h"
 #endif
-#ifdef WITH_ROS
-#include "ros_impl.h"
-#endif
+#include <rclcpp/rclcpp.hpp>
 
-bool stop = false;
 
 enum Processor{
 	CPU, OPENCL, OPENGL, CUDA
 };
 
-void sigint_handler(int s)
-{
-	stop = true;
-}
 
 class K2G {
 
@@ -61,7 +55,7 @@ public:
 	K2G(Processor p = CPU, bool mirror = false, std::string serial = std::string()): mirror_(mirror), listener_(libfreenect2::Frame::Color | libfreenect2::Frame::Ir | libfreenect2::Frame::Depth), 
 	                                       undistorted_(512, 424, 4), registered_(512, 424, 4), big_mat_(1920, 1082, 4), qnan_(std::numeric_limits<float>::quiet_NaN()){
 
-		signal(SIGINT,sigint_handler);
+
 
 		if(freenect2_.enumerateDevices() == 0)
 		{
@@ -117,7 +111,9 @@ public:
 			serial_ = serial;
 		else
 			serial_ = freenect2_.getDefaultDeviceSerialNumber();
-		
+
+		libfreenect2::FrameMap frames_;
+
 		dev_->setColorFrameListener(&listener_);
 		dev_->setIrAndDepthFrameListener(&listener_);
 		dev_->start();
@@ -142,6 +138,16 @@ public:
 	libfreenect2::Freenect2Device::ColorCameraParams getRgbParameters(){
 		libfreenect2::Freenect2Device::ColorCameraParams rgb = dev_->getColorCameraParams();
 		return rgb;
+	}
+
+	std::string getSerialNumber(){
+		std::string serial = dev_->getSerialNumber();
+		return serial;
+	}
+
+	std::string getFirmwareVersion(){
+		std::string firmware = dev_->getFirmwareVersion();
+		return firmware;
 	}
 
 	void disableLog() {
@@ -179,9 +185,9 @@ public:
 
 	    fs.release();
 		
+		
 	}
 
-#ifdef WITH_PCL
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr getCloud(){
 		const short w = undistorted_.width;
 		const short h = undistorted_.height;
@@ -229,16 +235,16 @@ public:
 			const unsigned int offset = y * w;
 			const float * itD = itD0 + offset;
 			const char * itRGB = itRGB0 + offset * 4;
-			const float dy = rowmap(y);
+			//const float dy = rowmap(y);
 
 			for(std::size_t x = 0; x < w; ++x, ++itP, ++itD, itRGB += 4 )
 			{
 				const float depth_value = *itD / 1000.0f;
 				
-				if(!std::isnan(depth_value) && !(std::abs(depth_value) < 0.0001)){
-	
+				if(!std::isnan(depth_value) ){ 
+	 //&& !(std::abs(depth_value) < 0.0001)
 					const float rx = colmap(x) * depth_value;
-                	const float ry = dy * depth_value;               
+                	const float ry = rowmap(y) * depth_value;               
 					itP->z = depth_value;
 					itP->x = rx;
 					itP->y = ry;
@@ -277,6 +283,8 @@ public:
         cv::Mat tmp_itD0(undistorted_.height, undistorted_.width, CV_8UC4, undistorted_.data);
         cv::Mat tmp_itRGB0(registered_.height, registered_.width, CV_8UC4, registered_.data);
         
+		//tmp_itD0.convertTo(tmp_itD0, CV_8UC1, -256.0 / 65535.0, 256.0);
+
         if (mirror_ == true){
 
             cv::flip(tmp_itD0,tmp_itD0,1);
@@ -287,7 +295,7 @@ public:
         const float * itD0 = (float *) tmp_itD0.ptr();
         const char * itRGB0 = (char *) tmp_itRGB0.ptr();
         
-		pcl::PointXYZRGB * itP = &cloud->points[0];
+		
         bool is_dense = true;
 		
 		for(std::size_t y = 0; y < h; ++y){
@@ -295,35 +303,37 @@ public:
 			const unsigned int offset = y * w;
 			const float * itD = itD0 + offset;
 			const char * itRGB = itRGB0 + offset * 4;
-			const float dy = rowmap(y);
+			//const float dy = rowmap(y);
 
-			for(std::size_t x = 0; x < w; ++x, ++itP, ++itD, itRGB += 4)
+			for(std::size_t x = 0; x < w; ++x, ++itD, itRGB += 4)
 			{
 				const float depth_value = *itD / 1000.0f;
-				
-				if(!std::isnan(depth_value) && !(std::abs(depth_value) < 0.0001)){
-	
+				pcl::PointXYZRGB itP = pcl::PointXYZRGB();
+				if(!std::isnan(depth_value) && (std::abs(depth_value) > 3)){
+					//!(std::abs(depth_value) < 0.0001)
 					const float rx = colmap(x) * depth_value;
-                	const float ry = dy * depth_value;               
-					itP->z = depth_value;
-					itP->x = rx;
-					itP->y = ry;
+                	const float ry = rowmap(y)* depth_value;               
+					itP.z = depth_value;
+					itP.x = rx;
+					itP.y = ry;
 
-					itP->b = itRGB[0];
-					itP->g = itRGB[1];
-					itP->r = itRGB[2];
+					itP.b = itRGB[0];
+					itP.g = itRGB[1];
+					itP.r = itRGB[2];
 				} else {
-					itP->z = qnan_;
-					itP->x = qnan_;
-					itP->y = qnan_;
+					itP.z = qnan_;
+					itP.x = qnan_;
+					itP.y = qnan_;
 
-					itP->b = qnan_;
-					itP->g = qnan_;
-					itP->r = qnan_;
+					itP.b = qnan_;
+					itP.g = qnan_;
+					itP.r = qnan_;
 					is_dense = false;
  				}
+				cloud-> push_back( itP );
 			}
 		}
+
 		cloud->is_dense = is_dense;
 #ifdef WITH_SERIALIZATION
 		if(serialize_)
@@ -332,11 +342,10 @@ public:
 		return cloud;
 	}
 
-#endif
-
 	void shutDown(){
 		dev_->stop();
   		dev_->close();
+		delete dev_;
 	}
 
 	void mirror(){
@@ -395,7 +404,7 @@ public:
 	}
 
 	// Depth and color are aligned and registered 
-	void get(cv::Mat & color_mat, cv::Mat & depth_mat, const bool full_hd = true, const bool remove_points = false){
+	void get(cv::Mat & color_mat, cv::Mat & depth_mat, const bool full_hd = true, const bool remove_points = true){
 		listener_.waitForNewFrame(frames_);
 		libfreenect2::Frame * rgb = frames_[libfreenect2::Frame::Color];
 		libfreenect2::Frame * depth = frames_[libfreenect2::Frame::Depth];
@@ -422,7 +431,7 @@ public:
 
 
 	// Depth and color are aligned and registered 
-	void get(cv::Mat & color_mat, cv::Mat & depth_mat, cv::Mat & ir_mat, const bool full_hd = true, const bool remove_points = false){
+	void get(cv::Mat & color_mat, cv::Mat & depth_mat, cv::Mat & ir_mat, const bool full_hd = true, const bool remove_points = true){
 		listener_.waitForNewFrame(frames_);
 		libfreenect2::Frame * rgb = frames_[libfreenect2::Frame::Color];
 		libfreenect2::Frame * depth = frames_[libfreenect2::Frame::Depth];
@@ -449,16 +458,15 @@ public:
 			ir_mat = ir_tmp.clone();
 		}
 
-		listener_.release(frames_);
+		
 	}
 
-#ifdef WITH_PCL
 	// All frame and cloud are aligned. There is a small overhead in the double call to registration->apply which has to be removed
 	void get(cv::Mat & color_mat, cv::Mat & depth_mat, pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud, 
-		const bool full_hd = true, const bool remove_points = false){
+		const bool full_hd = true, const bool remove_points = true){
 		listener_.waitForNewFrame(frames_);
 		libfreenect2::Frame * rgb = frames_[libfreenect2::Frame::Color];
-		libfreenect2::Frame * depth = frames_[libfreenect2::Frame::Depth];
+		libfreenect2::Frame * depth = frames_[libfreenect2::Frame::Ir];
 
 		registration_->apply(rgb, depth, &undistorted_, &registered_, remove_points, &big_mat_, map_);
 
@@ -481,7 +489,7 @@ public:
 		cloud = getCloud(rgb, depth, cloud);
 		listener_.release(frames_);
 	}
-#endif
+
 
 #ifdef WITH_SERIALIZATION
 	void enableSerialization(){
@@ -512,7 +520,6 @@ private:
 
 		(*oa_) << now << color;
 	}
-#ifdef WITH_PCL
 
 	void serializeCloud(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud)
 	{	
@@ -530,7 +537,6 @@ private:
 			sr << p.x << p.y << p.z << p.r << p.g << p.b;
 		}
 	}
-#endif
 #endif
 
 	void prepareMake3D(const libfreenect2::Freenect2Device::IrCameraParams & depth_p)

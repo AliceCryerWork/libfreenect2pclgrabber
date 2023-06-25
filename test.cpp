@@ -24,6 +24,10 @@ via Luigi Alamanni 13D, San Giuliano Terme 56010 (PI), Italy
 #include <pcl/console/parse.h>
 #include <pcl/console/time.h>
 #include <pcl/io/ply_io.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
+
 #ifdef WITH_SERIALIZATION
 #include "serialization.h"
 #endif
@@ -98,7 +102,7 @@ int main(int argc, char * argv[])
   boost::shared_ptr<pcl::PointCloud<pcl::PointXYZRGB>> cloud;
   K2G k2g(freenectprocessor);
   std::cout << "getting cloud" << std::endl;
-  cloud = k2g.getCloud();
+  
 
   k2g.printParameters();
 
@@ -112,7 +116,7 @@ int main(int argc, char * argv[])
   pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(cloud);
   viewer->addPointCloud<pcl::PointXYZRGB>(cloud, rgb, "sample cloud");
   viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "sample cloud");
-
+  cloud = k2g.getCloud();
   PlySaver ps(cloud, false, false, k2g);
   viewer->registerKeyboardCallback(KeyboardEventOccurred, (void*)&ps);
 

@@ -17,49 +17,16 @@ Scuola Superiore Sant'Anna
 via Luigi Alamanni 13D, San Giuliano Terme 56010 (PI), Italy
 */
 #include "k2g_ros.h"
-
+#include <rclcpp/rclcpp.hpp>
 // extra headers for writing out ply file
 #include <pcl/console/print.h>
 #include <pcl/console/parse.h>
 #include <pcl/console/time.h>
 #include <pcl/io/ply_io.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
 
-struct PlySaver{
-
-	PlySaver(boost::shared_ptr<pcl::PointCloud<pcl::PointXYZRGB>> cloud, bool binary, bool use_camera, K2GRos & ros_grabber): 
-           cloud_(cloud), binary_(binary), use_camera_(use_camera), K2G_ros_(ros_grabber){}
-
- 	boost::shared_ptr<pcl::PointCloud<pcl::PointXYZRGB>> cloud_;
-	bool binary_;
-  	bool use_camera_;
-  	K2GRos & K2G_ros_;
-};
-
-void KeyboardEventOccurred(const pcl::visualization::KeyboardEvent &event, void * data)
-{
-	std::string pressed = event.getKeySym();
-	PlySaver * s = (PlySaver*)data;
-	if(event.keyDown ())
-	{
-		if(pressed == "s")
-		{
-			pcl::PLYWriter writer;
-			std::chrono::high_resolution_clock::time_point p = std::chrono::high_resolution_clock::now();
-			std::string now = std::to_string((long)std::chrono::duration_cast<std::chrono::milliseconds>(p.time_since_epoch()).count());
-			writer.write ("cloud_" + now, *(s->cloud_), s->binary_, s->use_camera_);
-			std::cout << "saved " << "cloud_" + now + ".ply" << std::endl;
-		}
-		if(pressed == "m")
-		{
-			s->K2G_ros_.mirror();
-		}
-		if(pressed == "e")
-		{
-			s->K2G_ros_.setShutdown();
-			std::cout << "SHUTTING DOWN" << std::endl;
-		}
-	}
-}
 
 
 int main(int argc, char * argv[])
@@ -71,19 +38,24 @@ int main(int argc, char * argv[])
 		freenectprocessor = static_cast<Processor>(atoi(argv[1]));
 	}
 
-	ros::init(argc, argv, "RosKinect2Grabber");
+	rclcpp::init(argc, argv);
+	//K2GRos K2G_ros;
+		  // Try to start the Kinect V2
+  try {
+    auto kinect2_node = std::make_shared<K2GRos>(freenectprocessor);
+    rclcpp::spin(kinect2_node);
 
-	K2GRos K2G_ros(freenectprocessor);
+  } catch (const std::exception & e) {
+    std::cout << "Failed to initialize kinect2_node: " << e.what() << std::endl;
+  }
 
-	while((ros::ok()) && (!K2G_ros.terminate()))
-	{  		
-		K2G_ros.publishColor();
-		K2G_ros.publishCameraInfoColor();
-		K2G_ros.publishCameraInfoDepth(); 
-		
-	}
 
-	K2G_ros.shutDown();
-	return 0;
+	//K2G_ros.shutDown();
+
+
+  rclcpp::shutdown();
+
+  return 0;
+
 }
 
