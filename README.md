@@ -1,6 +1,13 @@
 libfreenect2pclgrabber
 ======================
 
+Conversion of Giacomo Dabisias ROS1 grabber to ROS2
+**colcon build** the folder
+then **ros2 run kinect2grabber test_ros**
+
+If using rviz2 to visalize, remember to run the following in a separate tab:
+**ros2 run tf2_ros static_transform_publisher "0" "0" "0" "0" "0" "0" "map" "kinect2"**
+
 A grabber for the kinect2 which returns images and Point Clouds. 
 There is the support for multiple kinects and a ROS interface.
 
