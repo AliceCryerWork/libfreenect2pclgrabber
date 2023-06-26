@@ -51,6 +51,7 @@ if(${WITH_SERIALIZATION})
 	set(BOOST_LIBS "boost_serialization")
 endif()
 include_directories(/opt/ros/humble/include)
+set(OpenCV_DIR /usr/local/lib/cmake/opencv)
 
 	find_package(ament_cmake REQUIRED)
 	find_package(argparse REQUIRED)
