@@ -61,6 +61,8 @@ endif()
 	find_package(sensor_msgs REQUIRED)
 	find_package(pcl_conversions REQUIRED)
 	find_package(PCL 1.10 REQUIRED)
+ 	find_package(eigen3_cmake_module REQUIRED)
+	find_package(Eigen3 REQUIRED)
 
 install(DIRECTORY "include" DESTINATION ".")
 
@@ -72,7 +74,7 @@ add_library(kinect2grabber
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
+  $<INSTALL_INTERFACE:include> ${Eigen3_INCLUDE_DIRS}))
 
 target_link_libraries( ${PROJECT_NAME}
   ${Boost_SYSTEM_LIBRARY}
