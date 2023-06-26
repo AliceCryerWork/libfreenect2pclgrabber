@@ -65,7 +65,7 @@ endif()
 install(DIRECTORY "include" DESTINATION ".")
 
 
-add_library(${PROJECT_NAME}
+add_library(kinect2grabber
   "multi_test.cpp"
   "test_ros.cpp"
   "test.cpp")
