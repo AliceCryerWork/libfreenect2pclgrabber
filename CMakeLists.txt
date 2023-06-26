@@ -50,7 +50,7 @@ if(${WITH_SERIALIZATION})
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWITH_SERIALIZATION")
 	set(BOOST_LIBS "boost_serialization")
 endif()
-
+include_directories(/opt/ros/humble/include)
 
 	find_package(ament_cmake REQUIRED)
 	find_package(argparse REQUIRED)
