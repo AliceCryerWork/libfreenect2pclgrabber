@@ -74,7 +74,7 @@ add_library(kinect2grabber
 
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include> ${Eigen3_INCLUDE_DIRS}))
+  $<INSTALL_INTERFACE:include> ${Eigen3_INCLUDE_DIRS})
 
 target_link_libraries( ${PROJECT_NAME}
   ${Boost_SYSTEM_LIBRARY}
